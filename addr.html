@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>주소 검색</title>
+<style>html,body,#w{margin:0;height:100%;font-family:sans-serif}</style></head>
+<body><div id="w"></div>
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<script>
+// 신청서 파일(file://)에서 연 팝업: 주소 검색 결과를 원래 창으로 전달합니다. 서버 저장 없음.
+var sfx=new URLSearchParams(location.search).get('s')||'';
+new daum.Postcode({
+  width:'100%',height:'100%',
+  oncomplete:function(d){
+    var data={roadAddress:d.roadAddress,autoRoadAddress:d.autoRoadAddress,jibunAddress:d.jibunAddress,
+      zonecode:d.zonecode,bname:d.bname,buildingName:d.buildingName,apartment:d.apartment};
+    if(window.opener){window.opener.postMessage({type:'addrResult',sfx:sfx,data:data},'*');window.close();}
+    else{document.body.textContent='원래 창을 찾을 수 없습니다. 이 창을 닫고 다시 시도해 주세요.';}
+  }
+}).embed(document.getElementById('w'));
+</script></body></html>
