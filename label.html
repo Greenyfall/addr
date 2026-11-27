@@ -111,12 +111,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     .screen { display: none !important; }
     #print-sheet { display: block !important; }
   }
-  #print-sheet {
-    display: none;
-    width: 210mm; height: 297mm;
+  #print-sheet { display: none; }
+  .print-page {
+    width: 210mm; height: 296.5mm; overflow: hidden;
     padding-top: 12.85mm; padding-left: 6.35mm; padding-right: 6.35mm;
-    background: #fff;
+    background: #fff; break-after: page; page-break-after: always;
   }
+  .print-page:last-child { break-after: auto; page-break-after: auto; }
   .print-row { display: flex; gap: 3.17mm; height: 33.85mm; }
   .print-cell {
     width: 99.06mm; height: 33.85mm; flex-shrink: 0;
@@ -124,8 +125,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     font-family: 'Malgun Gothic','맑은 고딕',sans-serif;
     text-align: right; display: flex; flex-direction: column; justify-content: center;
   }
-  .print-cell .p-addr1 { font-size: 7.5pt; color: #333; line-height: 1.5; }
-  .print-cell .p-addr2 { font-size: 7.5pt; color: #333; line-height: 1.5; margin-bottom: 1.2mm; }
+  .print-cell .p-addr1 { font-size: 9.5pt; color: #333; line-height: 1.35; }
+  .print-cell .p-addr2 { font-size: 9.5pt; color: #333; line-height: 1.35; margin-bottom: 1.2mm; }
   .print-cell .p-name  { font-size: 12pt; font-weight: 700; margin-bottom: 0.8mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .print-cell .p-zip   { font-size: 9.5pt; font-weight: 700; letter-spacing: 0.08em; color: #222; }
   .print-cell.empty-cell { border-color: #ddd; }
@@ -135,7 +136,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
 <div class="screen">
   <h1>📮 라벨 생성기</h1>
-  <p class="sub">애니라벨 V3240 (16칸) · 등기우편 서식 엑셀 동시 출력</p>
+  <p class="sub">애니라벨 V3240 (16칸, 초과 시 다음 장) · 등기우편 서식 엑셀 동시 출력</p>
 
   <!-- 고정값 설정 -->
   <div class="card">
@@ -229,7 +230,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
 <script>
 var labels = [];
-var MAX = 16;
+var PER_PAGE = 16;
 var _seq = 0;
 function nextId(){ return Date.now()*100 + (_seq++ % 100); }
 
@@ -365,7 +366,6 @@ function parsePasteAll() {
   if (!blocks.length) { showMsg('내용을 입력해주세요.', false); return; }
   var added=0, failedBlocks=[], overBlocks=[];
   for (var i=0; i<blocks.length; i++) {
-    if (labels.length >= MAX) { overBlocks = blocks.slice(i); break; }
     var p = parseBlock(blocks[i]);
     if (p) { labels.push(p); added++; } else failedBlocks.push(blocks[i]);
   }
@@ -374,7 +374,6 @@ function parsePasteAll() {
   document.getElementById('paste-input').value = left.join('\n\n');
   var note = '';
   if (failedBlocks.length) note += ' / ⚠️ '+failedBlocks.length+'개 인식 실패(입력칸에 남겨둠)';
-  if (overBlocks.length) note += ' / ⚠️ 16칸 초과 '+overBlocks.length+'개는 입력칸에 남겨둠';
   autoFillZip('✅ '+added+'개 추가'+note, !left.length);
 }
 
@@ -384,7 +383,6 @@ function addManual() {
   var addr1= document.getElementById('inp-addr1').value.trim();
   var addr2raw = document.getElementById('inp-addr2').value.trim();
   if (!name||!addr1) { alert('이름과 기본 주소는 필수입니다.'); return; }
-  if (labels.length>=MAX) { alert('최대 16칸입니다.'); return; }
   var addr2 = formatAddr2(addr2raw, extractSigu(addr1));
   labels.push({name:name,zip:zip,addr1:addr1,addr2:addr2,id:nextId()});
   clearManual();
@@ -419,7 +417,7 @@ function resetAll() {
 
 function render() {
   var tbody=document.getElementById('preview-tbody');
-  document.getElementById('badge').textContent=labels.length+'명';
+  document.getElementById('badge').textContent=labels.length+'명'+(labels.length?' · '+Math.ceil(labels.length/PER_PAGE)+'장':'');
   document.getElementById('btn-print').disabled=labels.length===0;
   document.getElementById('btn-excel').disabled=labels.length===0;
   if (!labels.length) {
@@ -555,21 +553,26 @@ function pad(n){return n<10?'0'+n:n;}
 // ── 인쇄 ──
 function doPrint() {
   var sheet=document.getElementById('print-sheet');
+  var pages=Math.max(1, Math.ceil(labels.length/PER_PAGE));
   var html='';
-  for (var row=0; row<8; row++) {
-    html+='<div class="print-row">';
-    for (var col=0; col<2; col++) {
-      var l=labels[row*2+col];
-      if (l) {
-        html+='<div class="print-cell">'
-          +'<div class="p-addr1">'+esc(l.addr1)+'</div>'
-          +(l.addr2?'<div class="p-addr2">'+esc(l.addr2)+'</div>':'')
-          +'<div class="p-name">'+esc(l.name)+' 귀하</div>'
-          +(l.zip?'<div class="p-zip">'+esc(l.zip)+'</div>':'')
-          +'</div>';
-      } else {
-        html+='<div class="print-cell empty-cell"></div>';
+  for (var pg=0; pg<pages; pg++) {
+    html+='<div class="print-page">';
+    for (var row=0; row<8; row++) {
+      html+='<div class="print-row">';
+      for (var col=0; col<2; col++) {
+        var l=labels[pg*PER_PAGE + row*2 + col];
+        if (l) {
+          html+='<div class="print-cell">'
+            +'<div class="p-addr1">'+esc(l.addr1)+'</div>'
+            +(l.addr2?'<div class="p-addr2">'+esc(l.addr2)+'</div>':'')
+            +'<div class="p-name">'+esc(l.name)+' 귀하</div>'
+            +(l.zip?'<div class="p-zip">'+esc(l.zip)+'</div>':'')
+            +'</div>';
+        } else {
+          html+='<div class="print-cell empty-cell"></div>';
+        }
       }
+      html+='</div>';
     }
     html+='</div>';
   }
