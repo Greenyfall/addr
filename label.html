@@ -311,12 +311,7 @@ function parseBlock(block) {
   var zipMatch = text.match(/\(?\s*(?<!\d)(\d{5})(?!\d)\s*\)?/);
   var zip = zipMatch ? zipMatch[1] : '';
   var t = text.replace(/\(?\s*(?<!\d)\d{5}(?!\d)\s*\)?/,' ').replace(/\s+/g,' ').trim();
-  var addrKw = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주'];
-  var addrStart = -1;
-  for (var i=0; i<addrKw.length; i++) {
-    var idx = t.indexOf(addrKw[i]);
-    if (idx !== -1) { addrStart = idx; break; }
-  }
+  var addrStart = findAddrStart(t);
   if (addrStart === -1) return null;
   var beforeAddr = t.slice(0, addrStart).trim();
   var addrAndAfter = t.slice(addrStart).trim();
@@ -334,20 +329,53 @@ function parseBlock(block) {
   return { name:name, zip:zip, addr1:addr1, addr2:addr2, id:nextId() };
 }
 
+// 주소 시작 위치: 시·도 이름(가장 앞에 나온 것) 또는 "OO시/군 + 다음 단어"
+var SIDO_RE = /(^|\s)(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|충청|전북|전남|전라|경북|경남|경상|제주)/;
+var CITY_RE = /(^|\s)[가-힣]{1,4}[시군]\s+[가-힣]/;
+function findAddrStart(t) {
+  var m = t.match(SIDO_RE) || t.match(CITY_RE);
+  return m ? m.index + m[1].length : -1;
+}
+function hasRoadAddr(t) { return /(대로|로|길)\s*\d/.test(t); }
+function hasName(t) { var p = parseBlock(t); return !!(p && p.name !== '수취인'); }
+function isNameOnly(line) { return /^[가-힣]{2,5}$/.test(line.trim()); }
+
+// 빈 줄이 없어도 한 줄에 한 명씩 입력하면 사람별로 나눔
+function splitPeople(raw) {
+  var out = [];
+  raw.split(/\n\s*\n/).forEach(function(block) {
+    var cur = [];
+    block.split('\n').map(function(x){ return x.trim(); }).filter(Boolean).forEach(function(line) {
+      var curText = cur.join(' ');
+      var startsNew = cur.length && hasRoadAddr(curText) && (
+        findAddrStart(line) !== -1 ||
+        (isNameOnly(line) && hasName(curText))
+      );
+      if (startsNew) { out.push(cur.join('\n')); cur = []; }
+      cur.push(line);
+    });
+    if (cur.length) out.push(cur.join('\n'));
+  });
+  return out;
+}
+
 function parsePasteAll() {
   var raw = document.getElementById('paste-input').value;
-  var blocks = raw.split(/\n\s*\n/).map(function(b){return b.trim();}).filter(Boolean);
+  var blocks = splitPeople(raw);
   if (!blocks.length) { showMsg('내용을 입력해주세요.', false); return; }
-  var added=0, failed=0;
+  var added=0, failedBlocks=[], overBlocks=[];
   for (var i=0; i<blocks.length; i++) {
-    if (labels.length >= MAX) { showMsg('최대 16칸 초과 — '+added+'개만 추가됨', added>0); render(); return; }
+    if (labels.length >= MAX) { overBlocks = blocks.slice(i); break; }
     var p = parseBlock(blocks[i]);
-    if (p) { labels.push(p); added++; } else failed++;
+    if (p) { labels.push(p); added++; } else failedBlocks.push(blocks[i]);
   }
-  clearPaste();
-  if (failed===0) showMsg('✅ '+added+'개 추가 — 우편번호 자동검색 중...', true);
-  else showMsg('✅ '+added+'개 추가 / ⚠️ '+failed+'개 파싱 실패', added>0);
-  autoFillZip();
+  // 추가하지 못한 내용은 입력칸에 남겨 둠
+  var left = failedBlocks.concat(overBlocks);
+  document.getElementById('paste-input').value = left.join('\n\n');
+  var note = '';
+  if (failedBlocks.length) note += ' / ⚠️ '+failedBlocks.length+'개 인식 실패(입력칸에 남겨둠)';
+  if (overBlocks.length) note += ' / ⚠️ 16칸 초과 '+overBlocks.length+'개는 입력칸에 남겨둠';
+  autoFillZip('✅ '+added+'개 추가'+note, !left.length);
 }
 
 function addManual() {
@@ -432,15 +460,17 @@ function jsonp(url, timeoutMs) {
   });
 }
 
-function autoFillZip() {
+function autoFillZip(prefix, prefixOk) {
   render();
+  var pre = prefix ? prefix + ' — ' : '';
+  var preOk = prefixOk !== false;
   var targets = labels.filter(function(l){ return !l.zip && l.addr1; });
-  if (!targets.length) { showMsg('✅ 완료!', true); return; }
+  if (!targets.length) { showMsg(pre+'완료!', preOk); return; }
   if (!APPS_SCRIPT_URL) {
-    showMsg('ℹ️ 우편번호 없는 항목 '+targets.length+'개 — 표의 [🔍 우편번호 검색]을 눌러 선택하세요.', true);
+    showMsg(pre+'우편번호 없는 항목 '+targets.length+'개 — 표의 [🔍 우편번호 검색]을 눌러 선택하세요.', preOk);
     return;
   }
-  showMsg('🔍 우편번호 자동검색 중... ('+targets.length+'개)', true);
+  showMsg(pre+'🔍 우편번호 자동검색 중... ('+targets.length+'개)', preOk);
   var ok = 0;
   Promise.all(targets.map(function(l) {
     return jsonp(APPS_SCRIPT_URL + '?q=' + encodeURIComponent(l.addr1)).then(function(res) {
@@ -452,8 +482,8 @@ function autoFillZip() {
   })).then(function() {
     render();
     var left = targets.length - ok;
-    showMsg(left ? '✅ '+ok+'개 자동입력 / ⚠️ '+left+'개는 [🔍 우편번호 검색]으로 선택하세요.'
-                 : '✅ 우편번호 자동입력 완료!', left===0);
+    showMsg(pre+(left ? '우편번호 '+ok+'개 자동입력 / ⚠️ '+left+'개는 [🔍 우편번호 검색]으로 선택하세요.'
+                 : '우편번호 자동입력 완료!'), left===0 && preOk);
   });
 }
 
