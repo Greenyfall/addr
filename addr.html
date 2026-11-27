@@ -6,7 +6,10 @@
 <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script>
 // 신청서 파일(file://)에서 연 팝업: 주소 검색 결과를 원래 창으로 전달합니다. 서버 저장 없음.
-var sfx=new URLSearchParams(location.search).get('s')||'';
+// ?s=식별값  &q=미리 넣을 검색어(선택)
+var qs=new URLSearchParams(location.search);
+var sfx=qs.get('s')||'';
+var q=qs.get('q')||'';
 new daum.Postcode({
   width:'100%',height:'100%',
   oncomplete:function(d){
@@ -15,5 +18,5 @@ new daum.Postcode({
     if(window.opener){window.opener.postMessage({type:'addrResult',sfx:sfx,data:data},'*');window.close();}
     else{document.body.textContent='원래 창을 찾을 수 없습니다. 이 창을 닫고 다시 시도해 주세요.';}
   }
-}).embed(document.getElementById('w'));
+}).embed(document.getElementById('w'), q ? {q:q} : undefined);
 </script></body></html>
