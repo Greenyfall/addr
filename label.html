@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>라벨 생성기 — 애니라벨 V3240</title>
+<!-- SheetJS for Excel export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- 우편번호 검색: greenyfall 중계 팝업(postMessage) + 선택적 Apps Script 자동검색 -->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Malgun Gothic','맑은 고딕',sans-serif; background: #eeeae4; color: #1a1a1a; }
+  .screen { max-width: 860px; margin: 0 auto; padding: 28px 20px; }
+  h1 { font-size: 19px; font-weight: 700; margin-bottom: 2px; }
+  .sub { font-size: 12px; color: #888; margin-bottom: 22px; }
+
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 18px 22px; margin-bottom: 14px; }
+  .sec { font-size: 11px; font-weight: 700; color: #999; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px; }
+
+  /* 고정값 설정 */
+  .fixed-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .fixed-item label { font-size: 11px; color: #888; display: block; margin-bottom: 3px; }
+  .fixed-item input { width: 100%; padding: 6px 9px; border: 1px solid #e0ddd6; border-radius: 6px; font-size: 13px; font-family: inherit; background: #fafaf8; outline: none; }
+  .fixed-item input:focus { border-color: #3b6fd4; background: #fff; }
+
+  .paste-hint { font-size: 12px; color: #777; margin-bottom: 10px; line-height: 1.8; }
+  .paste-hint code { background: #f0ede8; padding: 1px 6px; border-radius: 4px; font-family: inherit; color: #333; font-size: 12px; }
+  .paste-hint .sep { color: #bbb; font-size: 11px; display: block; margin: 4px 0; }
+  textarea {
+    width: 100%; height: 150px; border: 1px solid #ddd; border-radius: 7px;
+    padding: 10px 12px; font-size: 13px; font-family: inherit; resize: vertical;
+    outline: none; background: #fafafa; line-height: 1.8;
+  }
+  textarea:focus { border-color: #3b6fd4; background: #fff; }
+  .parse-result { margin-top: 7px; font-size: 12px; min-height: 17px; }
+  .ok { color: #1a7a48; } .err { color: #c0392b; }
+
+  .manual-toggle { font-size: 12px; color: #3b6fd4; cursor: pointer; margin-top: 8px; display: inline-block; }
+  .manual-toggle:hover { text-decoration: underline; }
+  .manual-fields { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px solid #eee; }
+  .manual-fields.open { display: block; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .row1 { margin-bottom: 10px; }
+  label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+  input[type=text] {
+    width: 100%; padding: 8px 11px; border: 1px solid #ddd; border-radius: 7px;
+    font-size: 14px; font-family: inherit; outline: none; background: #fafafa;
+  }
+  input[type=text]:focus { border-color: #3b6fd4; background: #fff; }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn-blue { flex: 1; background: #2a56b0; color: #fff; border: none; border-radius: 7px; padding: 9px 0; font-size: 14px; font-family: inherit; font-weight: 600; cursor: pointer; }
+  .btn-blue:hover { background: #1e449a; }
+  .btn-ghost { background: #fff; border: 1px solid #ccc; border-radius: 7px; padding: 9px 16px; font-size: 13px; font-family: inherit; cursor: pointer; color: #555; }
+  .btn-ghost:hover { background: #f0f0f0; }
+
+  .ph { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .badge { background: #e6eefa; color: #2a56b0; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 10px; }
+
+  /* 미리보기 테이블 */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 600px; }
+  th { background: #f5f3ef; padding: 7px 10px; text-align: left; font-weight: 600; color: #555; border-bottom: 1px solid #ddd; white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid #eee; color: #333; }
+  tr:last-child td { border-bottom: none; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #ccc; font-size: 13px; padding: 0 4px; }
+  .del-btn:hover { color: #c0392b; }
+  .btn-zip { background: #f0ede8; border: 1px solid #ccc; border-radius: 5px; padding: 2px 8px; font-size: 11px; cursor: pointer; color: #555; white-space: nowrap; }
+  .btn-zip:hover { background: #e0ddd6; }
+  .empty-row td { text-align: center; color: #bbb; padding: 28px; }
+
+  /* 하단 버튼 */
+  .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .btn-print { background: #1a7a48; color: #fff; border: none; border-radius: 8px; padding: 12px 0; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .btn-print:hover { background: #155e39; }
+  .btn-excel { background: #1d6b38; color: #fff; border: none; border-radius: 8px; padding: 12px 0; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .btn-excel:hover { background: #17562e; }
+  .btn-print:disabled, .btn-excel:disabled { background: #bbb; cursor: not-allowed; }
+  .btn-reset { width: 100%; background: #fff; color: #999; border: 1px solid #ddd; border-radius: 8px; padding: 8px 0; font-size: 12px; font-family: inherit; cursor: pointer; margin-top: 6px; }
+  .btn-reset:hover { background: #f5f5f5; }
+
+  /* 인쇄 */
+  @media print {
+    @page { size: A4 portrait; margin: 0; }
+    body { background: #fff; }
+    .screen { display: none !important; }
+    #print-sheet { display: block !important; }
+  }
+  #print-sheet {
+    display: none;
+    width: 210mm; height: 297mm;
+    padding-top: 12.85mm; padding-left: 6.35mm; padding-right: 6.35mm;
+    background: #fff;
+  }
+  .print-row { display: flex; gap: 3.17mm; height: 33.85mm; }
+  .print-cell {
+    width: 99.06mm; height: 33.85mm; flex-shrink: 0;
+    border: 0.3pt solid #aaa; padding: 3.5mm 5mm; overflow: hidden;
+    font-family: 'Malgun Gothic','맑은 고딕',sans-serif;
+    text-align: right; display: flex; flex-direction: column; justify-content: center;
+  }
+  .print-cell .p-addr1 { font-size: 7.5pt; color: #333; line-height: 1.5; }
+  .print-cell .p-addr2 { font-size: 7.5pt; color: #333; line-height: 1.5; margin-bottom: 1.2mm; }
+  .print-cell .p-name  { font-size: 12pt; font-weight: 700; margin-bottom: 0.8mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .print-cell .p-zip   { font-size: 9.5pt; font-weight: 700; letter-spacing: 0.08em; color: #222; }
+  .print-cell.empty-cell { border-color: #ddd; }
+</style>
+</head>
+<body>
+
+<div class="screen">
+  <h1>📮 라벨 생성기</h1>
+  <p class="sub">애니라벨 V3240 (16칸) · 등기우편 서식 엑셀 동시 출력</p>
+
+  <!-- 고정값 설정 -->
+  <div class="card">
+    <div class="sec">등기우편 고정값 설정</div>
+    <div class="fixed-row">
+      <div class="fixed-item">
+        <label>수수료*</label>
+        <input id="fix-fee" value="보통" />
+      </div>
+      <div class="fixed-item">
+        <label>환부*</label>
+        <input id="fix-return" value="환부불능" />
+      </div>
+      <div class="fixed-item">
+        <label>규격*</label>
+        <input id="fix-size" value="규격" />
+      </div>
+      <div class="fixed-item">
+        <label>중량</label>
+        <input id="fix-weight" value="25" />
+      </div>
+    </div>
+  </div>
+
+  <!-- 붙여넣기 입력 -->
+  <div class="card">
+    <div class="sec">주소 입력</div>
+    <p class="paste-hint">
+      줄바꿈 자유롭게, 여러 명은 <strong>빈 줄(엔터 두 번)</strong>으로 구분<br>
+      <span class="sep">── 예시 (우편번호 있는 경우) ──</span>
+      <code>서울특별시 강남구 테헤란로 123</code><br>
+      <code>행복아파트 101동 202호 (역삼동) 홍길동 06133</code>
+      <span class="sep">── 예시 (우편번호 없는 경우) ──</span>
+      <code>서울특별시 종로구</code><br>
+      <code>세종대로 209 김철수</code>
+    </p>
+    <textarea id="paste-input" placeholder="여기에 자유롭게 붙여넣으세요...&#10;여러 명은 빈 줄(엔터 두 번)로 구분"></textarea>
+    <div class="parse-result" id="parse-result"></div>
+    <div class="btn-row">
+      <button class="btn-blue" onclick="parsePasteAll()">📋 라벨 추가</button>
+      <button class="btn-ghost" onclick="clearPaste()">지우기</button>
+    </div>
+    <span class="manual-toggle" id="toggle-btn" onclick="toggleManual()">▶ 직접 입력하기</span>
+    <div class="manual-fields" id="manual-fields">
+      <div class="row2">
+        <div><label>이름 / 기관명 *</label><input type="text" id="inp-name" placeholder="홍길동" /></div>
+        <div><label>우편번호</label><input type="text" id="inp-zip" placeholder="49111" maxlength="6" /></div>
+      </div>
+      <div class="row1"><label>도로명 주소 *</label><input type="text" id="inp-addr1" placeholder="부산광역시 영도구 영도로 99" /></div>
+      <div class="row1"><label>상세 주소</label><input type="text" id="inp-addr2" placeholder="행복아파트 101동 202호" /></div>
+      <div class="btn-row">
+        <button class="btn-blue" onclick="addManual()">+ 추가</button>
+        <button class="btn-ghost" onclick="clearManual()">초기화</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 미리보기 -->
+  <div class="card">
+    <div class="ph">
+      <span class="sec" style="margin:0">미리보기</span>
+      <span class="badge" id="badge">0명</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>수취인</th><th>우편번호</th><th>기본주소</th><th>상세주소</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="preview-tbody">
+          <tr class="empty-row"><td colspan="5">추가된 항목이 없습니다</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="action-row">
+      <button class="btn-print" id="btn-print" onclick="doPrint()" disabled>🖨️ 라벨 인쇄 (V3240)</button>
+      <button class="btn-excel" id="btn-excel" onclick="exportExcel()" disabled>📥 등기우편 서식 다운로드</button>
+    </div>
+    <button class="btn-reset" onclick="resetAll()">전체 삭제</button>
+  </div>
+</div>
+
+<div id="print-sheet"></div>
+
+<script>
+var labels = [];
+var MAX = 16;
+var _seq = 0;
+function nextId(){ return Date.now()*100 + (_seq++ % 100); }
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function splitAddr(full) {
+  full = full.replace(/,/g,' ').replace(/\s+/g,' ').trim();
+  full = full.replace(/\s*\d+통\s*\d*반?/g,' ').replace(/\s*\d+반/g,' ').replace(/\s+/g,' ').trim();
+  var m = full.match(/^(.*?(?:대로|로|길)\s*\d*번길(?:\s*\d+(?:-\d+)?)?)\s*(.*?)$/);
+  if (m) return { addr1: m[1].trim(), addr2raw: m[2].trim() };
+  m = full.match(/^(.*?(?:대로|로|길)\s*\d+(?:-\d+)?)\s*(.*?)$/);
+  if (m) return { addr1: m[1].trim(), addr2raw: m[2].trim() };
+  return { addr1: full, addr2raw: '' };
+}
+
+function extractSigu(addr1) {
+  var m = addr1.match(/[가-힣]+구|[가-힣]+시/g);
+  return m ? m[m.length-1] : '';
+}
+
+function formatAddr2(raw, sigu) {
+  if (!raw) return '';
+  raw = raw.replace(/\s+/g,' ').trim();
+  var parenMatch = raw.match(/\(([^)]+)\)/);
+  var parenContent = parenMatch ? parenMatch[1] : '';
+  var withoutParen = raw.replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim();
+  var donghoMatch = withoutParen.match(/\d+동\s*\d+호|\d+-\d+호|\d+호/);
+  var dongho = donghoMatch ? donghoMatch[0].replace(/\s+/g,'') : '';
+  var beopMatch = withoutParen.match(/([가-힣]{2,6}동)(?!\s*\d)/);
+  var beop = beopMatch ? beopMatch[1] : '';
+  var aptKw = ['아파트','빌라','맨션','타운','파크','힐스','힐','하이츠','캐슬','팰리스','시티','플러스','뷰','리버','그린','블루','스카이','드림','하우스','더샵','래미안','자이','푸르지오','아이파크','이편한'];
+  var apt = '';
+  for (var k=0; k<aptKw.length; k++) {
+    var ai = withoutParen.indexOf(aptKw[k]);
+    if (ai !== -1) {
+      var bef = withoutParen.slice(0,ai).trim().split(' ');
+      apt = (bef.length ? bef[bef.length-1] : '') + aptKw[k]; break;
+    }
+  }
+  var parenParts = [];
+  if (parenContent) {
+    parenParts = parenContent.split(/[,，\s]+/).map(function(s){return s.trim();}).filter(Boolean);
+  } else {
+    if (beop) parenParts.push(beop);
+    if (apt && apt !== beop) parenParts.push(apt);
+    if (!parenParts.length && sigu) parenParts.push(sigu);
+  }
+  if (dongho) return dongho + (parenParts.length ? ' ('+parenParts.join(', ')+')' : '');
+  return raw;
+}
+
+function extractName(str) {
+  if (!str) return '';
+  var s = str.replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim();
+  var addrWords = ['아파트','빌라','맨션','타운','파크','동','호','번길','번지','로','길','구','시','군','읍','면','리','가','대로'];
+  var tokens = s.split(' ');
+  for (var i=tokens.length-1; i>=0; i--) {
+    var tok = tokens[i].trim();
+    if (/^[가-힣]{2,5}$/.test(tok)) {
+      var isAddr = false;
+      for (var j=0; j<addrWords.length; j++) {
+        if (tok.endsWith(addrWords[j]) && tok.length <= addrWords[j].length+2) { isAddr=true; break; }
+      }
+      if (!isAddr) return tok;
+    }
+  }
+  return '';
+}
+
+function parseBlock(block) {
+  var text = block.replace(/\n/g,' ').replace(/\s+/g,' ').trim();
+  if (!text) return null;
+  var zipMatch = text.match(/\(?\s*(\d{5})\s*\)?/);
+  var zip = zipMatch ? zipMatch[1] : '';
+  var t = text.replace(/\(?\s*\d{5}\s*\)?/,' ').replace(/\s+/g,' ').trim();
+  var addrKw = ['서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주'];
+  var addrStart = -1;
+  for (var i=0; i<addrKw.length; i++) {
+    var idx = t.indexOf(addrKw[i]);
+    if (idx !== -1) { addrStart = idx; break; }
+  }
+  if (addrStart === -1) return null;
+  var beforeAddr = t.slice(0, addrStart).trim();
+  var addrAndAfter = t.slice(addrStart).trim();
+  var sp = splitAddr(addrAndAfter);
+  var addr1 = sp.addr1, addr2raw = sp.addr2raw;
+  var nameBefore = extractName(beforeAddr);
+  var nameAfter = extractName(addr2raw);
+  var name = '';
+  if (nameBefore) { name = nameBefore; }
+  else if (nameAfter) { name = nameAfter; addr2raw = addr2raw.replace(nameAfter,'').trim(); }
+  if (!addr1) return null;
+  if (!name) name = "수취인";
+  var sigu = extractSigu(addr1);
+  var addr2 = formatAddr2(addr2raw, sigu);
+  return { name:name, zip:zip, addr1:addr1, addr2:addr2, id:nextId() };
+}
+
+function parsePasteAll() {
+  var raw = document.getElementById('paste-input').value;
+  var blocks = raw.split(/\n\s*\n/).map(function(b){return b.trim();}).filter(Boolean);
+  if (!blocks.length) { showMsg('내용을 입력해주세요.', false); return; }
+  var added=0, failed=0;
+  for (var i=0; i<blocks.length; i++) {
+    if (labels.length >= MAX) { showMsg('최대 16칸 초과 — '+added+'개만 추가됨', added>0); render(); return; }
+    var p = parseBlock(blocks[i]);
+    if (p) { labels.push(p); added++; } else failed++;
+  }
+  clearPaste();
+  if (failed===0) showMsg('✅ '+added+'개 추가 — 우편번호 자동검색 중...', true);
+  else showMsg('✅ '+added+'개 추가 / ⚠️ '+failed+'개 파싱 실패', added>0);
+  autoFillZip();
+}
+
+function addManual() {
+  var name = document.getElementById('inp-name').value.trim();
+  var zip  = document.getElementById('inp-zip').value.trim();
+  var addr1= document.getElementById('inp-addr1').value.trim();
+  var addr2raw = document.getElementById('inp-addr2').value.trim();
+  if (!name||!addr1) { alert('이름과 기본 주소는 필수입니다.'); return; }
+  if (labels.length>=MAX) { alert('최대 16칸입니다.'); return; }
+  var addr2 = formatAddr2(addr2raw, extractSigu(addr1));
+  labels.push({name:name,zip:zip,addr1:addr1,addr2:addr2,id:nextId()});
+  clearManual();
+  autoFillZip();
+}
+
+function showMsg(msg,ok) {
+  var el=document.getElementById('parse-result');
+  el.textContent=msg; el.className='parse-result '+(ok?'ok':'err');
+}
+function clearPaste() {
+  document.getElementById('paste-input').value='';
+  document.getElementById('parse-result').textContent='';
+}
+function toggleManual() {
+  var f=document.getElementById('manual-fields');
+  var open=f.classList.toggle('open');
+  document.getElementById('toggle-btn').textContent=(open?'▼':'▶')+' 직접 입력하기';
+}
+function clearManual() {
+  ['inp-name','inp-zip','inp-addr1','inp-addr2'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('inp-name').focus();
+}
+function removeLabel(id) {
+  var i=labels.findIndex(function(l){return l.id===id;});
+  if (i>-1) labels.splice(i,1); render();
+}
+function resetAll() {
+  if (labels.length&&!confirm('전체 삭제할까요?')) return;
+  labels.length=0; render();
+}
+
+function render() {
+  var tbody=document.getElementById('preview-tbody');
+  document.getElementById('badge').textContent=labels.length+'명';
+  document.getElementById('btn-print').disabled=labels.length===0;
+  document.getElementById('btn-excel').disabled=labels.length===0;
+  if (!labels.length) {
+    tbody.innerHTML='<tr class="empty-row"><td colspan="5">추가된 항목이 없습니다</td></tr>';
+    return;
+  }
+  tbody.innerHTML=labels.map(function(l){
+    var zipCell = l.zip
+      ? esc(l.zip)
+      : '<button class="btn-zip" onclick="searchZip('+l.id+')">🔍 우편번호 검색</button>';
+    return '<tr>'
+      +'<td>'+esc(l.name)+' 귀하</td>'
+      +'<td>'+zipCell+'</td>'
+      +'<td>'+esc(l.addr1)+'</td>'
+      +'<td>'+esc(l.addr2)+'</td>'
+      +'<td><button class="del-btn" onclick="removeLabel('+l.id+')">✕</button></td>'
+      +'</tr>';
+  }).join('');
+}
+
+// ── 우편번호 ──
+// 1) 자동검색: Apps Script 웹앱 주소를 넣으면 붙여넣기 후 자동으로 우편번호를 채웁니다. (비워두면 사용 안 함)
+var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwygKKe5BnArdofxj5iyfJVVUG1KadpbC7aDqklerWb4D5B6vO8TNQt6zmSQLkndig/exec';
+// 2) 수동검색: greenyfall 중계 팝업에서 주소를 클릭하면 결과가 이 창으로 전달됩니다.
+var ADDR_POPUP_URL = 'https://greenyfall.github.io/addr/addr.html';
+var ADDR_ORIGIN = 'https://greenyfall.github.io';
+
+function jsonp(url, timeoutMs) {
+  return new Promise(function(resolve, reject) {
+    var cb = '__zipcb' + Date.now() + Math.floor(Math.random()*1e6);
+    var s = document.createElement('script');
+    var timer = setTimeout(function(){ cleanup(); reject(new Error('timeout')); }, timeoutMs || 8000);
+    function cleanup(){ clearTimeout(timer); try{ delete window[cb]; }catch(e){ window[cb]=undefined; } if (s.parentNode) s.parentNode.removeChild(s); }
+    window[cb] = function(data){ cleanup(); resolve(data); };
+    s.onerror = function(){ cleanup(); reject(new Error('load error')); };
+    s.src = url + (url.indexOf('?')>-1?'&':'?') + 'callback=' + cb;
+    document.head.appendChild(s);
+  });
+}
+
+function autoFillZip() {
+  render();
+  var targets = labels.filter(function(l){ return !l.zip && l.addr1; });
+  if (!targets.length) { showMsg('✅ 완료!', true); return; }
+  if (!APPS_SCRIPT_URL) {
+    showMsg('ℹ️ 우편번호 없는 항목 '+targets.length+'개 — 표의 [🔍 우편번호 검색]을 눌러 선택하세요.', true);
+    return;
+  }
+  showMsg('🔍 우편번호 자동검색 중... ('+targets.length+'개)', true);
+  var ok = 0;
+  Promise.all(targets.map(function(l) {
+    return jsonp(APPS_SCRIPT_URL + '?q=' + encodeURIComponent(l.addr1)).then(function(res) {
+      if (res && res.zip) {
+        var i = labels.findIndex(function(x){ return x.id===l.id; });
+        if (i>-1) { labels[i].zip = String(res.zip); ok++; }
+      }
+    }).catch(function(){});
+  })).then(function() {
+    render();
+    var left = targets.length - ok;
+    showMsg(left ? '✅ '+ok+'개 자동입력 / ⚠️ '+left+'개는 [🔍 우편번호 검색]으로 선택하세요.'
+                 : '✅ 우편번호 자동입력 완료!', left===0);
+  });
+}
+
+// 팝업 검색 (사용자가 결과를 클릭)
+var zipPopup = null;
+function searchZip(id) {
+  var l = labels.find(function(x){ return x.id===id; });
+  var url = ADDR_POPUP_URL + '?s=' + encodeURIComponent(String(id))
+          + (l && l.addr1 ? '&q=' + encodeURIComponent(l.addr1) : '');
+  zipPopup = window.open(url, 'addrPopup', 'width=500,height=600');
+  if (!zipPopup) alert('팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.');
+}
+
+window.addEventListener('message', function(e) {
+  if (e.origin !== ADDR_ORIGIN) return;
+  var m = e.data;
+  if (!m || m.type !== 'addrResult' || !m.data) return;
+  var i = labels.findIndex(function(l){ return String(l.id) === String(m.sfx); });
+  if (i < 0) return;
+  var zip = String(m.data.zonecode || '').replace(/\D/g,'');
+  if (!/^\d{5}$/.test(zip)) return;
+  labels[i].zip = zip;
+  if (!labels[i].addr1) labels[i].addr1 = m.data.roadAddress || m.data.autoRoadAddress || '';
+  render();
+  var left = labels.filter(function(l){ return !l.zip; }).length;
+  showMsg(left ? '✅ 입력됨 — 남은 항목 '+left+'개' : '✅ 우편번호 모두 입력 완료!', true);
+});
+
+// ── 엑셀 내보내기 ──
+function exportExcel() {
+  var fee    = document.getElementById('fix-fee').value;
+  var ret    = document.getElementById('fix-return').value;
+  var size   = document.getElementById('fix-size').value;
+  var weight = document.getElementById('fix-weight').value;
+
+  var header = ['수수료*','환부*','규격*','중량','수취인*','우편번호*','기본주소*','상세주소','휴대폰','문서번호','문서제목','비고'];
+  var rows = [header];
+  labels.forEach(function(l) {
+    rows.push([
+      fee, ret, size, weight,
+      l.name,
+      l.zip,
+      l.addr1,
+      l.addr2,
+      '', '', '', ''
+    ]);
+  });
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // 컬럼 너비 설정
+  ws['!cols'] = [
+    {wch:8},{wch:10},{wch:8},{wch:6},
+    {wch:16},{wch:8},{wch:34},{wch:24},
+    {wch:14},{wch:10},{wch:16},{wch:12}
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, '엑셀양식');
+  XLSX.writeFile(wb, '등기우편_'+today()+'.xlsx');
+}
+
+function today() {
+  var d=new Date();
+  return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate());
+}
+function pad(n){return n<10?'0'+n:n;}
+
+// ── 인쇄 ──
+function doPrint() {
+  var sheet=document.getElementById('print-sheet');
+  var html='';
+  for (var row=0; row<8; row++) {
+    html+='<div class="print-row">';
+    for (var col=0; col<2; col++) {
+      var l=labels[row*2+col];
+      if (l) {
+        html+='<div class="print-cell">'
+          +'<div class="p-addr1">'+esc(l.addr1)+'</div>'
+          +(l.addr2?'<div class="p-addr2">'+esc(l.addr2)+'</div>':'')
+          +'<div class="p-name">'+esc(l.name)+' 귀하</div>'
+          +(l.zip?'<div class="p-zip">'+esc(l.zip)+'</div>':'')
+          +'</div>';
+      } else {
+        html+='<div class="print-cell empty-cell"></div>';
+      }
+    }
+    html+='</div>';
+  }
+  sheet.innerHTML=html;
+  window.print();
+}
+
+document.getElementById('paste-input').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&e.ctrlKey) parsePasteAll();
+});
+document.querySelectorAll('#manual-fields input').forEach(function(el){
+  el.addEventListener('keydown',function(e){if(e.key==='Enter') addManual();});
+});
+</script>
+</body>
+</html>
